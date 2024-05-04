@@ -11,6 +11,7 @@ This script is for generating prediction results for test sequences
 
 import os
 import argparse
+import sys
 from textwrap import dedent
 import time
 from Bio import SeqIO
@@ -136,11 +137,11 @@ def get_attention_scores(indv_pred_list, attention_model_list, seq_list, X):
 
 def proba_to_class_name(scores):
     """
-    Turn prediction scores into real class names.
-    If score > 0.5, label the sample as AMP; else non-AMP.
-    Input: scores - scores predicted by the model, 1-d array.
-    Output: an array of class labels.
-    """
+        Turn prediction scores into real class names.
+        If score > 0.5, label the sample as AMP; else non-AMP.
+        Input: scores - scores predicted by the model, 1-d array.
+        Output: an array of class labels.
+        """
     classes = []
     for i in range(len(scores)):
         if scores[i]>0.5:
@@ -159,23 +160,27 @@ def main():
         Sequences should be shorter than 201 amino acids long, 
         and should not contain amino acids other than the 20 standard ones. 
         '''),
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('-m', '--model', help="Balanced or imbalanced model (balanced by default, optional)",
                         choices=['balanced', 'imbalanced'], default='balanced', required=False)
     parser.add_argument('-s', '--seqs', help="Sequences for prediction, fasta file", required=True)
-    parser.add_argument('-od', '--out_dir', help="Output directory (optional)", default=os.getcwd(), required=False)
-    parser.add_argument('-of', '--out_format', help="Output format, txt or tsv (tsv by default, optional)", 
+    parser.add_argument('-of', '--out_format', help="Output format, txt or tsv (tsv by default, optional)",
                         choices=['txt', 'tsv'], default='tsv', required=False)
-    parser.add_argument('-on', '--out_name', help="Output file name (optional)", default=None, required=False)
-    parser.add_argument('-sub', '--sub_model', 
+    parser.add_argument('-on', '--out_name', required=True)
+    parser.add_argument('-sub', '--sub_model',
                         help="Whether to output sub-model results, on or off (off by default, optional)",
                         choices=['on', 'off'], default='off', required=False)
-    parser.add_argument('-att', '--attention', 
+    parser.add_argument('-att', '--attention',
                         help="Whether to output attention scores, on or off (off by default, optional)",
                         choices=['on', 'off'], default='off', required=False)
-    
+
     args = parser.parse_args()
+
+    dir_path = os.path.dirname(args.out_name)
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+    print(f"made dir {dir_path}")
 
     model_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))+'/models/'
     models = [model_dir + args.model + '/AMPlify_' + args.model + '_model_weights_' \
@@ -196,19 +201,19 @@ def main():
     for seq_record in SeqIO.parse(args.seqs, 'fasta'):
         seq_id.append(str(seq_record.id))
         peptide.append(str(seq_record.seq))
-    
+
     # look for indices of valid sequences
     valid_ix = []
     for i in range(len(peptide)):
         if len(peptide[i]) <= 200 and len(peptide[i]) >= 2 and set(peptide[i])-set(aa) == set():
             valid_ix.append(i)
-            
+
     # select valid sequences for prediction
     peptide_valid = [peptide[i] for i in valid_ix]
-    
+
     # generate one-hot encoding input and pad sequences into MAX_LEN long
     X_seq_valid = one_hot_padding(peptide_valid, MAX_LEN)
-   
+
     # ensemble results for the 5 models
     print('\nPredicting...')
     y_score_valid, y_indv_list_valid = ensemble(out_model, X_seq_valid)
@@ -219,12 +224,12 @@ def main():
     y_class = []
     y_length = []
     y_charge = []
-    
+
     # get attention scores for each sequence
     if args.attention == 'on':
         attention_valid = get_attention_scores(y_indv_list_valid, att_model, peptide_valid, X_seq_valid)
         attention = []
-        
+
     # get results of the entire list, with invalid sequences labeled with NA
     ix = 0
     for i in range(len(peptide)):
@@ -239,7 +244,7 @@ def main():
             y_charge.append(peptide[i].count('K') + peptide[i].count('R') - peptide[i].count('D') - peptide[i].count('E'))
             if args.sub_model == 'on':
                 for n in range(5):
-                    y_indv_list[n].append(str(round(y_indv_list_valid[n][ix], 8)))            
+                    y_indv_list[n].append(str(round(y_indv_list_valid[n][ix], 8)))
             if args.attention == 'on':
                 attention.append(list(attention_valid[ix]))
             ix = ix + 1
@@ -251,7 +256,7 @@ def main():
             y_charge.append('NA')
             if args.sub_model == 'on':
                 for n in range(5):
-                    y_indv_list[n].append('NA')                
+                    y_indv_list[n].append('NA')
             if args.attention == 'on':
                 attention.append('NA')
 
@@ -259,38 +264,34 @@ def main():
     out_txt = ''
     for i in range(len(seq_id)):
         temp_txt = 'Sequence ID: '+seq_id[i]+'\n'+'Sequence: '+peptide[i]+'\n' \
-        +'Length: '+str(y_length[i])+'\n'+'Charge: '+str(y_charge[i])+'\n'
+                   +'Length: '+str(y_length[i])+'\n'+'Charge: '+str(y_charge[i])+'\n'
         if args.sub_model == 'on':
             temp_txt = temp_txt+'Sub-model probability scores: ' \
-            + ', '.join([y_indv_list[n][i] for n in range(5)]) + '\n'
+                       + ', '.join([y_indv_list[n][i] for n in range(5)]) + '\n'
         temp_txt = temp_txt+'Probability score: '+y_score[i]+'\n' \
-        +'AMPlify_log_scaled_score: '+y_log_score[i]+'\n'+'Prediction: ' \
-        +y_class[i]+'\n'
+                   +'AMPlify_log_scaled_score: '+y_log_score[i]+'\n'+'Prediction: ' \
+                   +y_class[i]+'\n'
         if args.attention == 'on':
             temp_txt = temp_txt+'Attention: '+str(attention[i])+'\n'
         temp_txt = temp_txt+'\n'
         print(temp_txt)
         out_txt = out_txt + temp_txt
-    
-    # save to tsv or xlsx    
+
+    # save to tsv or xlsx
+
     if args.out_format is not None:
         print('\nSaving results...')
-        if args.out_name is not None:
-            out_name = args.out_name
-        else:
-            out_name = 'AMPlify_' + args.model + '_results_' + time.strftime('%Y%m%d%H%M%S', time.localtime())
+        out_name = args.out_name
         if (args.out_format).lower() == 'txt':
-            out_name = out_name + '.txt'
-            if os.path.isfile(args.out_dir + '/' + out_name):
+            if os.path.isfile(out_name):
                 print('\nUnable to save! File already existed!')
             else:
-                out = open(args.out_dir + '/' + out_name, 'w')
+                out = open(out_name, 'w')
                 out.write(out_txt)
                 out.close()
-                print('\nResults saved as: ' + args.out_dir + '/' + out_name)
+                print('\nResults saved as: ' + out_name)
         else:
-            out_name = out_name + '.tsv'
-            if os.path.isfile(args.out_dir + '/' + out_name):
+            if os.path.isfile(out_name):
                 print('\nUnable to save! File already existed!')
             else:
                 out = pd.DataFrame({'Sequence_ID':seq_id,
@@ -305,8 +306,8 @@ def main():
                         out.insert(loc = n+4, column = 'Sub_model_%d_probability_score'%(n+1), value = y_indv_list[n])
                 if args.attention == 'on':
                     out.insert(loc = len(out.columns), column = 'Attention', value = attention)
-                out.to_csv(args.out_dir + '/' + out_name, sep='\t', index=False)
-                print('\nResults saved as: ' + args.out_dir + '/' + out_name)
+                out.to_csv(out_name, sep='\t', index=False)
+                print('\nResults saved as: ' + out_name)
             
 
 if __name__ == "__main__":
