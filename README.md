@@ -1,4 +1,9 @@
-# AMPlify
+# Amplify Fork for classifiers evaluation tasks
+
+clone this repo with `--recurse-submodules` flag
+
+
+# Base repo Readme
 
 AMPlify is an attentive deep learning model for antimicrobial peptide prediction.
 
