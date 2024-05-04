@@ -167,6 +167,7 @@ def main():
     parser.add_argument('-od', '--out_dir', help="Output directory (optional)", default=os.getcwd(), required=False)
     parser.add_argument('-of', '--out_format', help="Output format, txt or tsv (tsv by default, optional)", 
                         choices=['txt', 'tsv'], default='tsv', required=False)
+    parser.add_argument('-on', '--out_name', help="Output file name (optional)", default=None, required=False)
     parser.add_argument('-sub', '--sub_model', 
                         help="Whether to output sub-model results, on or off (off by default, optional)",
                         choices=['on', 'off'], default='off', required=False)
@@ -274,7 +275,10 @@ def main():
     # save to tsv or xlsx    
     if args.out_format is not None:
         print('\nSaving results...')
-        out_name = 'AMPlify_' + args.model + '_results_' + time.strftime('%Y%m%d%H%M%S', time.localtime())
+        if args.out_name is not None:
+            out_name = args.out_name
+        else:
+            out_name = 'AMPlify_' + args.model + '_results_' + time.strftime('%Y%m%d%H%M%S', time.localtime())
         if (args.out_format).lower() == 'txt':
             out_name = out_name + '.txt'
             if os.path.isfile(args.out_dir + '/' + out_name):
