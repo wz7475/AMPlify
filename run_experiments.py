@@ -17,8 +17,10 @@ def main(input_dir: str, output_dir: str, suffix_to_process: str) -> None:
         for file in files:
             if file.endswith(suffix_to_process):
                 input_file = os.path.join(root, file)
-                output_file = os.path.join(output_dir, root, file)
-                process_file(input_file, output_file)
+                output_filename = file.replace("fasta", "tsv")
+                output_file = os.path.join(root, output_filename)
+                os.replace(input_file, output_file)
+                # process_file(input_file, output_file)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
