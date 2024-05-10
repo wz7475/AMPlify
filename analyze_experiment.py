@@ -8,7 +8,6 @@ def get_confusion_matrix(df_positives: pd.DataFrame, df_negatives: pd.DataFrame,
         Tuple[int, int, int, int, int]:
     all_actual_positives = len(df_positives)
     all_actual_negatives = len(df_negatives)
-    print(f"all_pos: {all_actual_positives}, all_neg: {all_actual_negatives}")
 
     true_positives = len(df_positives[df_positives[pred_col_name] == postives_value])
     false_negatives = len(df_positives[df_positives[pred_col_name] == negatives_value])
@@ -29,20 +28,23 @@ def get_metrics(tn, fp, fn, tp):
     return acc, fpr, tpr
 
 
-def analyze_experiment(positives_path, negatives_path):
+def analyze_experiment(positives_path, negatives_path, results_container: list, verbose=True):
     df_positives = pd.read_csv(positives_path, delimiter="\t")
     df_negatives = pd.read_csv(negatives_path, delimiter="\t")
 
     tn, fp, fn, tp, err = get_confusion_matrix(df_positives, df_negatives, "Prediction", "AMP", "non-AMP")
-    print(f"tn: {tn}, fp: {fp}, fn: {fn}, tp: {tp}, err: {err}")
 
     acc, fpr, tpr = get_metrics(tn, fp, fn, tp)
-    print(f"acc {acc}, fpr {fpr} tpr {tpr}")
+    results_container.append([tn, fp, fn, tp, acc, fpr, tpr])
+    if verbose:
+        print(f"tn: {tn}, fp: {fp}, fn: {fn}, tp: {tp}, err: {err}")
+        print(f"acc {acc}, fpr {fpr} tpr {tpr}")
 
 
 def get_outputs_pairs(output_dir: str):
-    pairs = []
     allowed_suffixes = ["active_32.tsv", "inactive_128.tsv"]
+
+    # get all paths
     all_paths_for_pairs = set()
     for root, _, files in os.walk(output_dir):
         for file in files:
@@ -50,12 +52,31 @@ def get_outputs_pairs(output_dir: str):
             for allowed_suf in allowed_suffixes:
                 if fullpath.endswith(allowed_suf):
                     all_paths_for_pairs.add(fullpath)
-            # print(root, file)
-    print(all_paths_for_pairs)
+
+    # get pairs
+    pairs = []
+    already_added_as_complementary = []
+    for current_path in all_paths_for_pairs:
+        if current_path in already_added_as_complementary:
+            continue
+        if current_path.endswith(allowed_suffixes[0]):
+            base = current_path.split(allowed_suffixes[0])[0]
+            complementary_path = f"{base}{allowed_suffixes[1]}"
+        else:
+            base = current_path.split(allowed_suffixes[1])[0]
+            complementary_path = f"{base}{allowed_suffixes[0]}"
+        pairs.append(sorted((current_path, complementary_path)))
+        already_added_as_complementary.append(complementary_path)
+    return pairs
+
 
 if __name__ == "__main__":
-    positives_path = "all_out/experiments_data/data/dbaasp/activity/active_32.tsv"
-    negatives_path = "all_out/experiments_data/data/dbaasp/activity/inactive_128.tsv"
+    results_container = []
+    pairs = get_outputs_pairs("all_out")
+    for r in pairs:
+        analyze_experiment(*r, results_container, verbose=False)
+        results_container[-1].insert(0, r[0].split("active_32")[0])
+    print(results_container)
 
-    # analyze_experiment(positives_path, negatives_path)
-    get_outputs_pairs("all_out")
+    results_df = pd.DataFrame(results_container, columns=["name", "tn", "fp", "fn", "tp", "acc", "fpr", "tpr"])
+    results_df.to_csv(os.path.join("all_out", "metrics.tsv"), sep="\t", index=False)
