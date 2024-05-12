@@ -8,7 +8,6 @@ def get_confusion_matrix(df_positives: pd.DataFrame, df_negatives: pd.DataFrame,
         Tuple[int, int, int, int, int]:
     all_actual_positives = len(df_positives)
     all_actual_negatives = len(df_negatives)
-    print(f"all_pos: {all_actual_positives}, all_neg: {all_actual_negatives}")
 
     true_positives = len(df_positives[df_positives[pred_col_name] == postives_value])
     false_negatives = len(df_positives[df_positives[pred_col_name] == negatives_value])
@@ -29,15 +28,17 @@ def get_metrics(tn, fp, fn, tp):
     return acc, fpr, tpr
 
 
-def analyze_experiment(positives_path, negatives_path):
+def analyze_experiment(positives_path, negatives_path, results_container: list, verbose=True):
     df_positives = pd.read_csv(positives_path, delimiter="\t")
     df_negatives = pd.read_csv(negatives_path, delimiter="\t")
 
     tn, fp, fn, tp, err = get_confusion_matrix(df_positives, df_negatives, "Prediction", "AMP", "non-AMP")
-    print(f"tn: {tn}, fp: {fp}, fn: {fn}, tp: {tp}, err: {err}")
 
     acc, fpr, tpr = get_metrics(tn, fp, fn, tp)
-    print(f"acc {acc}, fpr {fpr} tpr {tpr}")
+    results_container.append([tn, fp, fn, tp, acc, fpr, tpr])
+    if verbose:
+        print(f"tn: {tn}, fp: {fp}, fn: {fn}, tp: {tp}, err: {err}")
+        print(f"acc {acc}, fpr {fpr} tpr {tpr}")
 
 
 def get_outputs_pairs(output_dir: str):
@@ -70,13 +71,12 @@ def get_outputs_pairs(output_dir: str):
 
 
 if __name__ == "__main__":
-    positives_path = "all_out/experiments_data/data/dbaasp/activity/active_32.tsv"
-    negatives_path = "all_out/experiments_data/data/dbaasp/activity/inactive_128.tsv"
-
-    df_results = pd.DataFrame
-
-    # analyze_experiment(positives_path, negatives_path)
+    results_container = []
     pairs = get_outputs_pairs("all_out")
     for r in pairs:
-        print(r)
-        analyze_experiment(*r)
+        analyze_experiment(*r, results_container, verbose=False)
+        results_container[-1].insert(0, r[0].split("active_32")[0])
+    print(results_container)
+
+    results_df = pd.DataFrame(results_container, columns=["name", "tn", "fp", "fn", "tp", "acc", "fpr", "tpr"])
+    results_df.to_csv(os.path.join("all_out", "tasks_1_2.tsv"), sep="\t", index=False)
