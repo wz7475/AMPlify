@@ -27,7 +27,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print(args)
-    correctly_predicted, all_pairs = main(args.input, args.output)
+    correctly_predicted, all_pairs = main(args.input)
     print(correctly_predicted, all_pairs)
     results_df = pd.DataFrame({"distinguished": [correctly_predicted], "all": [all_pairs]})
     results_df.to_csv(args.output, sep="\t", index=False)
