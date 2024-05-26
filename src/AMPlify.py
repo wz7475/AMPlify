@@ -178,7 +178,7 @@ def main():
     args = parser.parse_args()
 
     dir_path = os.path.dirname(args.out_name)
-    if not os.path.exists(dir_path):
+    if not os.path.exists(dir_path) and dir_path != "":
         os.makedirs(dir_path)
     print(f"made dir {dir_path}")
 
