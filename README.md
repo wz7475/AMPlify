@@ -1,6 +1,8 @@
 # Amplify Fork for classifiers evaluation tasks
 
-clone this repo with `--recurse-submodules` flag
+remember to clone **recursively** or init submodules after cloning
+
+please read `experiments_tools/README.md`
 
 
 # Base repo Readme
